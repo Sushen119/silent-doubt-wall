@@ -20,6 +20,8 @@ type Doubt = { id: string; text: string; created_at: string };
 type Info = { title: string; className: string; code: string };
 type StyleMode = "default" | "simpler" | "analogy" | "code";
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 export default function LectureBoard({ lectureId }: { lectureId: string }) {
   const [supabase] = useState(() => createClient());
   const [info, setInfo] = useState<Info | null>(null);
@@ -28,6 +30,7 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
   const [doubts, setDoubts] = useState<Record<string, Doubt[]>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [openPublished, setOpenPublished] = useState<Record<string, boolean>>({});
 
   // Re-explain & Publish state
   const [activeExplainId, setActiveExplainId] = useState<string | null>(null);
@@ -168,173 +171,232 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
   const addressed = clusters.length - open.length;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-2xl space-y-5">
-        <Link href="/teacher/dashboard" className="text-sm text-indigo-600">
+    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <Link
+          href="/teacher/dashboard"
+          className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+        >
           &larr; All classes
         </Link>
 
-        <div className="flex items-start justify-between">
+        {/* Header */}
+        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-indigo-950 p-6 text-white shadow-sm">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">
+            <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-indigo-300">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+              Live confusion board
+            </p>
+            <h1 className="mt-1 text-3xl font-bold leading-tight">
               {info?.title ?? "Lecture"}
             </h1>
-            <p className="text-slate-600">{info?.className}</p>
+            <p className="mt-0.5 text-indigo-200">{info?.className}</p>
           </div>
           {info?.code && (
             <div className="text-right">
-              <p className="text-xs text-slate-500">Class code</p>
-              <p className="font-mono tabular-nums text-xl tracking-widest text-indigo-900">
+              <p className="text-xs font-medium uppercase tracking-wide text-indigo-300">
+                Class code
+              </p>
+              <p className="font-mono tabular-nums text-3xl font-bold tracking-[0.25em] text-amber-300">
                 {info.code}
               </p>
             </div>
           )}
-        </div>
+        </header>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
         {loading && <p className="text-slate-500">Loading...</p>}
 
         {!loading && top.length === 0 && (
-          <p className="text-slate-500">
-            No open doubts yet. Students can post at /join/{info?.code ?? "CODE"}.
-          </p>
+          <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+            <p className="text-lg font-semibold text-slate-900">No open doubts yet</p>
+            <p className="mt-1 text-slate-600">
+              Students can post at /join/{info?.code ?? "CODE"}. Topics appear here the moment
+              they ask.
+            </p>
+          </div>
         )}
 
-        {top.map((c, i) => (
-          <div
-            key={c.id}
-            className="bg-white border border-slate-200 rounded-xl p-4 space-y-3"
-          >
-            <div className="flex items-start gap-3">
-              <span className="font-mono tabular-nums text-2xl text-amber-600">
-                {i + 1}
-              </span>
-              <div className="flex-1">
-                <h2 className="font-semibold text-slate-900">
-                  {c.label ?? "Untitled topic"}
-                </h2>
-                <p className="text-sm text-slate-600 font-mono tabular-nums">
-                  {c.doubt_count} doubts · {c.me_too_count} me too ·{" "}
-                  {c.still_confused_count} still confused
-                </p>
-              </div>
-              <span className="font-mono tabular-nums text-sm text-slate-500">
-                {c.score.toFixed(1)}
-              </span>
-            </div>
+        {top.map((c, i) => {
+          const explanation = c.published_explanation;
+          const isLong = (explanation ?? "").length > 220;
+          const showAll = !!openPublished[c.id];
 
-            {c.published_explanation && (
-              <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1">
-                <p className="font-semibold">Published Explanation:</p>
-                <p className="whitespace-pre-wrap">{c.published_explanation}</p>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => toggle(c.id)}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-              >
-                {expanded === c.id ? "Hide doubts" : "View doubts"}
-              </button>
-              <button
-                onClick={() => {
-                  if (activeExplainId === c.id) {
-                    setActiveExplainId(null);
-                  } else if (draftText[c.id]) {
-                    setActiveExplainId(c.id);
-                  } else {
-                    generateExplanation(c.id, "default");
-                  }
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-1.5 text-sm font-medium"
-              >
-                {activeExplainId === c.id ? "Close AI helper" : "Re-explain"}
-              </button>
-              <button
-                onClick={() => markAddressed(c.id)}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-              >
-                Mark addressed
-              </button>
-            </div>
-
-            {activeExplainId === c.id && (
-              <div className="border-t border-slate-100 pt-3 space-y-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-slate-500 mr-1">Regenerate:</span>
-                  {(
-                    [
-                      ["default", "Standard"],
-                      ["simpler", "Simpler"],
-                      ["analogy", "Different analogy"],
-                      ["code", "Code example"],
-                    ] as [StyleMode, string][]
-                  ).map(([mode, label]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      disabled={generatingMode !== null}
-                      onClick={() => generateExplanation(c.id, mode)}
-                      className="text-xs border border-slate-300 rounded-md px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                    >
-                      {generatingMode === mode ? "Thinking..." : label}
-                    </button>
-                  ))}
+          return (
+            <div
+              key={c.id}
+              className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
+            >
+              <div className="flex items-start gap-4">
+                <span
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full font-mono text-xl font-bold ${
+                    i === 0 ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold leading-snug text-slate-900">
+                    {c.label ?? "Untitled topic"}
+                  </h2>
+                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm tabular-nums text-slate-600">
+                    <span>{plural(c.doubt_count, "doubt")}</span>
+                    <span>{c.me_too_count} me too</span>
+                    {c.still_confused_count > 0 && (
+                      <span className="font-medium text-amber-700">
+                        {c.still_confused_count} still confused
+                      </span>
+                    )}
+                  </p>
                 </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400">score</p>
+                  <p className="font-mono text-lg font-semibold tabular-nums text-slate-700">
+                    {c.score.toFixed(1)}
+                  </p>
+                </div>
+              </div>
 
-                <textarea
-                  rows={4}
-                  value={draftText[c.id] ?? ""}
-                  onChange={(e) =>
-                    setDraftText((prev) => ({ ...prev, [c.id]: e.target.value }))
-                  }
-                  placeholder="Write or edit the explanation for your class..."
-                  className="w-full border border-slate-300 rounded-lg p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+              {explanation && (
+                <div className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      Published to class
+                    </p>
+                    {isLong && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenPublished((p) => ({ ...p, [c.id]: !p[c.id] }))
+                        }
+                        className="text-xs font-medium text-emerald-700 hover:underline"
+                      >
+                        {showAll ? "Show less" : "Show more"}
+                      </button>
+                    )}
+                  </div>
+                  <p
+                    className={`whitespace-pre-wrap leading-relaxed ${
+                      isLong && !showAll ? "line-clamp-3" : ""
+                    }`}
+                  >
+                    {explanation}
+                  </p>
+                </div>
+              )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">
-                    {draftText[c.id] &&
-                    draftText[c.id]?.trim() !== (aiOriginal[c.id] ?? "").trim()
-                      ? "Edited by teacher"
-                      : "AI draft (editable)"}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveExplainId(null)}
-                      className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        publishing ||
-                        generatingMode !== null ||
-                        !(draftText[c.id] ?? "").trim()
-                      }
-                      onClick={() => publishExplanation(c.id)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-                    >
-                      {publishing ? "Publishing..." : "Publish to class"}
-                    </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    if (activeExplainId === c.id) {
+                      setActiveExplainId(null);
+                    } else if (draftText[c.id]) {
+                      setActiveExplainId(c.id);
+                    } else {
+                      generateExplanation(c.id, "default");
+                    }
+                  }}
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  {activeExplainId === c.id ? "Close AI helper" : "Re-explain"}
+                </button>
+                <button
+                  onClick={() => toggle(c.id)}
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  {expanded === c.id ? "Hide doubts" : "View doubts"}
+                </button>
+                <button
+                  onClick={() => markAddressed(c.id)}
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Mark addressed
+                </button>
+              </div>
+
+              {activeExplainId === c.id && (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="mr-1 text-xs font-medium text-slate-500">Regenerate:</span>
+                    {(
+                      [
+                        ["default", "Standard"],
+                        ["simpler", "Simpler"],
+                        ["analogy", "Different analogy"],
+                        ["code", "Code example"],
+                      ] as [StyleMode, string][]
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        disabled={generatingMode !== null}
+                        onClick={() => generateExplanation(c.id, mode)}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                      >
+                        {generatingMode === mode ? "Thinking..." : label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    rows={5}
+                    value={draftText[c.id] ?? ""}
+                    onChange={(e) =>
+                      setDraftText((prev) => ({ ...prev, [c.id]: e.target.value }))
+                    }
+                    placeholder="Write or edit the explanation for your class..."
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-slate-500">
+                      {draftText[c.id] &&
+                      draftText[c.id]?.trim() !== (aiOriginal[c.id] ?? "").trim()
+                        ? "Edited by teacher"
+                        : "AI draft (editable)"}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveExplainId(null)}
+                        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          publishing ||
+                          generatingMode !== null ||
+                          !(draftText[c.id] ?? "").trim()
+                        }
+                        onClick={() => publishExplanation(c.id)}
+                        className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {publishing ? "Publishing..." : "Publish to class"}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {expanded === c.id && (
-              <ul className="text-sm text-slate-700 space-y-1 border-t border-slate-100 pt-3">
-                {(doubts[c.id] ?? []).map((d) => (
-                  <li key={d.id}>&ldquo;{d.text}&rdquo;</li>
-                ))}
-                {!doubts[c.id] && <li className="text-slate-500">Loading...</li>}
-              </ul>
-            )}
-          </div>
-        ))}
+              {expanded === c.id && (
+                <ul className="space-y-2 border-t border-slate-100 pt-4 text-sm text-slate-700">
+                  {(doubts[c.id] ?? []).map((d) => (
+                    <li key={d.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                      &ldquo;{d.text}&rdquo;
+                    </li>
+                  ))}
+                  {!doubts[c.id] && <li className="text-slate-500">Loading...</li>}
+                </ul>
+              )}
+            </div>
+          );
+        })}
 
         {(otherOpen > 0 || addressed > 0) && (
           <p className="text-sm text-slate-500">
