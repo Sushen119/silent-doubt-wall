@@ -37,7 +37,7 @@ function randomCode() {
   return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
 }
 
-// "  Back   End " and "back end" are treated as the same class name
+// "   Back   End " and "back end" are treated as the same class name
 function cleanName(s: string) {
   return s.trim().replace(/\s+/g, " ");
 }
@@ -203,34 +203,87 @@ export default function ClassManager() {
   const baseUrl = getBaseSiteUrl();
 
   return (
-    <section className="mt-6 space-y-6 max-w-2xl">
+    <section aria-label="Class management" className="space-y-6">
+      {/* Create Class Bar */}
       <form
         onSubmit={createClass}
-        className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 flex flex-col sm:flex-row gap-2"
+        className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md"
       >
-        <input
-          value={className}
-          onChange={(e) => {
-            setClassName(e.target.value);
-            if (error) setError("");
-          }}
-          placeholder="New class name, e.g. BCA Sem 5 - DBMS"
-          className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 font-semibold transition">
-          Create class
-        </button>
+        <label
+          htmlFor="new-class-name"
+          className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2"
+        >
+          Create a new class room
+        </label>
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <input
+            id="new-class-name"
+            value={className}
+            onChange={(e) => {
+              setClassName(e.target.value);
+              if (error) setError("");
+            }}
+            placeholder="New class name, e.g. BCA Sem 5 - DBMS"
+            className="flex-1 rounded-xl border border-slate-300 bg-slate-50/50 px-4 py-3 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+          />
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:bg-indigo-700 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+          >
+            <span>+ Create class</span>
+          </button>
+        </div>
       </form>
 
       {error && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          {error}
-        </p>
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-2xs"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="mt-0.5 h-4 w-4 shrink-0 text-red-600"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{error}</span>
+        </div>
       )}
-      {loading && <p className="text-slate-500">Loading...</p>}
+
+      {loading && (
+        <div className="space-y-4">
+          {[1, 2].map((n) => (
+            <div
+              key={n}
+              className="h-48 animate-pulse rounded-2xl border border-slate-200 bg-white p-5 space-y-4"
+            >
+              <div className="flex justify-between">
+                <div className="h-6 w-40 rounded-lg bg-slate-200" />
+                <div className="h-9 w-24 rounded-lg bg-indigo-100" />
+              </div>
+              <div className="h-8 w-56 rounded-lg bg-slate-100" />
+              <div className="h-12 w-full rounded-xl bg-slate-100" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {!loading && classes.length === 0 && (
-        <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500">
-          No classes yet. Create your first one above.
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center space-y-2">
+          <p className="text-base font-semibold text-slate-800">
+            No classes created yet
+          </p>
+          <p className="text-sm text-slate-500">
+            Enter a course or subject name above to generate your first 6-character class code and QR link.
+          </p>
         </div>
       )}
 
@@ -243,81 +296,123 @@ export default function ClassManager() {
         const deleting = deletingId === c.id;
 
         return (
-          <div
+          <article
             key={c.id}
-            className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
+            className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm transition-shadow hover:shadow-md"
           >
-            {/* Class header */}
-            <div className="flex items-start justify-between gap-3 p-4 sm:p-5">
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-slate-900 truncate">
-                  {c.name}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {c.lectures.length} lecture{c.lectures.length === 1 ? "" : "s"}
+            {/* Class Header */}
+            <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900 truncate">
+                    {c.name}
+                  </h2>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                    {c.lectures.length} lecture{c.lectures.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Students join at{" "}
+                  <span className="font-mono font-medium text-slate-700">
+                    /join/{c.code}
+                  </span>
                 </p>
               </div>
+
               <div className="shrink-0 text-right">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Class code
                 </p>
-                <p className="font-mono tabular-nums text-xl font-bold tracking-widest text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1">
+                <p className="mt-0.5 rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-3.5 py-1.5 font-mono text-xl font-bold tabular-nums tracking-[0.2em] text-indigo-950 shadow-2xs">
                   {c.code}
                 </p>
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 pb-4">
+            {/* Action Toolbar */}
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3.5 sm:px-6 bg-slate-50/40">
               <button
                 type="button"
+                aria-expanded={showQr}
                 onClick={() => setOpenQrClassId(showQr ? null : c.id)}
-                className={`text-sm rounded-lg px-3 py-1.5 font-medium border transition ${
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs sm:text-sm font-semibold transition active:scale-[0.98] ${
                   showQr
-                    ? "bg-indigo-600 border-indigo-600 text-white"
-                    : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                {showQr ? "Hide QR" : "QR & Join Link"}
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <path d="M14 14h7v7h-7z" />
+                </svg>
+                <span>{showQr ? "Hide QR" : "QR & Join Link"}</span>
               </button>
+
               <button
                 type="button"
+                aria-expanded={showHistory}
                 onClick={() => toggleHistory(c.id)}
-                className={`text-sm rounded-lg px-3 py-1.5 font-medium border transition ${
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs sm:text-sm font-semibold transition active:scale-[0.98] ${
                   showHistory
-                    ? "bg-indigo-600 border-indigo-600 text-white"
-                    : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                {showHistory ? "Hide History Chart" : "Confusion History"}
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+                <span>{showHistory ? "Hide History Chart" : "Confusion History"}</span>
               </button>
+
               {!confirming && (
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteId(c.id)}
-                  className="ml-auto text-sm rounded-lg px-3 py-1.5 font-medium border border-red-200 text-red-600 hover:bg-red-50 transition"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98]"
                 >
-                  Delete class
+                  <span>Delete class</span>
                 </button>
               )}
             </div>
 
-            {/* Delete confirmation */}
+            {/* Delete Confirmation Banner */}
             {confirming && (
-              <div className="px-4 sm:px-5 pb-4">
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
-                  <p className="text-sm text-red-800">
-                    Delete <span className="font-semibold">&ldquo;{c.name}&rdquo;</span>?
+              <div className="border-t border-red-200 bg-red-50/80 px-5 py-4 sm:px-6">
+                <div className="space-y-3">
+                  <p className="text-sm text-red-900 leading-relaxed">
+                    Delete <span className="font-bold">&ldquo;{c.name}&rdquo;</span>?
                     This permanently removes its lectures, doubts and explanations,
-                    and the class code <span className="font-mono">{c.code}</span> will
+                    and the class code <span className="font-mono font-bold">{c.code}</span> will
                     stop working. This cannot be undone.
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       disabled={deleting}
                       onClick={() => setConfirmDeleteId(null)}
-                      className="text-sm border border-slate-300 bg-white text-slate-700 rounded-lg px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                     >
                       Cancel
                     </button>
@@ -325,7 +420,7 @@ export default function ClassManager() {
                       type="button"
                       disabled={deleting}
                       onClick={() => deleteClass(c.id)}
-                      className="text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg px-3 py-1.5 font-semibold disabled:opacity-50"
+                      className="rounded-xl bg-red-600 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-red-700 disabled:opacity-50"
                     >
                       {deleting ? "Deleting..." : "Yes, delete class"}
                     </button>
@@ -336,32 +431,39 @@ export default function ClassManager() {
 
             {/* QR Code & Join Link Panel */}
             {showQr && (
-              <div className="px-4 sm:px-5 pb-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-4">
-                  <div className="bg-white p-3 rounded-xl border border-slate-200 shrink-0">
-                    <QRCodeSVG value={joinUrl} size={140} />
+              <div className="border-t border-slate-200/80 bg-slate-50/70 px-5 py-5 sm:px-6">
+                <div className="flex flex-col sm:flex-row items-center gap-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
+                  <div className="shrink-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs">
+                    <QRCodeSVG value={joinUrl} size={148} />
                   </div>
-                  <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
-                    <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">
-                      Scan to post doubts anonymously
-                    </p>
-                    <p className="font-mono text-sm text-slate-800 break-all bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                  <div className="flex-1 min-w-0 space-y-3 text-center sm:text-left">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                        Projector QR & Direct Link
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Students scan this QR code or open the link below to post doubts anonymously.
+                      </p>
+                    </div>
+                    <p className="break-all rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs sm:text-sm text-slate-800">
                       {joinUrl}
                     </p>
-                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                    <div className="flex flex-wrap justify-center sm:justify-start gap-2">
                       <button
                         type="button"
                         onClick={() => copyJoinUrl(c.code)}
-                        className="text-sm bg-indigo-600 text-white rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-700"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-indigo-700 active:scale-[0.98]"
                       >
-                        {copiedCode === c.code ? "Copied!" : "Copy Join Link"}
+                        <span>
+                          {copiedCode === c.code ? "✓ Copied!" : "Copy Join Link"}
+                        </span>
                       </button>
                       <Link
                         href={`/join/${c.code}`}
                         target="_blank"
-                        className="text-sm border border-slate-300 bg-white text-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
-                        Open Student View &rarr;
+                        <span>Open Student View &rarr;</span>
                       </Link>
                     </div>
                   </div>
@@ -371,19 +473,29 @@ export default function ClassManager() {
 
             {/* Lecture-wise Confusion History Chart (Recharts) */}
             {showHistory && (
-              <div className="px-4 sm:px-5 pb-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                  <p className="text-xs uppercase tracking-wide font-semibold text-slate-600">
-                    Lecture-wise Confusion History
-                  </p>
+              <div className="border-t border-slate-200/80 bg-slate-50/70 px-5 py-5 sm:px-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-3 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Lecture-wise Confusion History
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Compare student doubts, upvotes, and comprehension across lectures
+                      </p>
+                    </div>
+                  </div>
+
                   {loadingHistory === c.id ? (
-                    <p className="text-xs text-slate-500 py-4">Loading chart...</p>
+                    <div className="flex h-60 items-center justify-center text-xs font-medium text-slate-500">
+                      Loading chart...
+                    </div>
                   ) : chartRows.length === 0 ? (
-                    <p className="text-xs text-slate-500 py-4">
+                    <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
                       No lecture history available yet.
-                    </p>
+                    </div>
                   ) : (
-                    <div className="h-60 w-full">
+                    <div className="h-64 w-full pt-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={chartRows}
@@ -398,8 +510,15 @@ export default function ClassManager() {
                             allowDecimals={false}
                             tick={{ fontSize: 12, fill: "#475569" }}
                           />
-                          <Tooltip />
-                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Tooltip
+                            contentStyle={{
+                              borderRadius: "0.75rem",
+                              border: "1px solid #e2e8f0",
+                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.07)",
+                              fontSize: "12px",
+                            }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
                           <Bar
                             dataKey="doubts"
                             name="Doubts"
@@ -432,14 +551,16 @@ export default function ClassManager() {
               </div>
             )}
 
-            {/* Lectures */}
-            <div className="border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5 space-y-3">
-              <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">
-                Lectures
-              </p>
+            {/* Lectures List & Add Lecture Form */}
+            <div className="border-t border-slate-100 bg-slate-50/50 p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Lectures
+                </p>
+              </div>
 
               {c.lectures.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
                   No lectures yet. Add your first one below.
                 </p>
               ) : (
@@ -448,19 +569,22 @@ export default function ClassManager() {
                     <li key={l.id}>
                       <Link
                         href={`/teacher/lecture/${l.id}`}
-                        className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition"
+                        className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-2xs transition hover:border-indigo-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                       >
-                        <span className="min-w-0 flex items-center gap-2">
-                          <span className="font-medium text-slate-900 truncate">
+                        <span className="min-w-0 flex items-center gap-2.5">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 font-mono text-xs font-semibold text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-700 transition">
+                            {c.lectures.length - i}
+                          </span>
+                          <span className="font-semibold text-slate-900 truncate group-hover:text-indigo-950">
                             {l.title}
                           </span>
                           {i === 0 && (
-                            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">
+                            <span className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                               Latest
                             </span>
                           )}
                         </span>
-                        <span className="shrink-0 text-sm font-medium text-indigo-600">
+                        <span className="shrink-0 inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-indigo-600 group-hover:translate-x-0.5 transition-transform">
                           Open board &rarr;
                         </span>
                       </Link>
@@ -471,22 +595,30 @@ export default function ClassManager() {
 
               <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <input
+                  aria-label={`New lecture title for ${c.name}`}
                   value={lectureTitles[c.id] ?? ""}
                   onChange={(e) =>
                     setLectureTitles((t) => ({ ...t, [c.id]: e.target.value }))
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addLecture(c.id);
+                    }
+                  }}
                   placeholder="New lecture, e.g. Lecture 7 - Normalization"
-                  className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
                 />
                 <button
+                  type="button"
                   onClick={() => addLecture(c.id)}
-                  className="border border-slate-300 bg-white hover:bg-slate-50 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700"
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-[0.98]"
                 >
-                  Add lecture
+                  + Add lecture
                 </button>
               </div>
             </div>
-          </div>
+          </article>
         );
       })}
     </section>

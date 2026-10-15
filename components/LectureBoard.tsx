@@ -32,6 +32,7 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
   const [loading, setLoading] = useState(true);
   const [openPublished, setOpenPublished] = useState<Record<string, boolean>>({});
   const [showAddressed, setShowAddressed] = useState(true);
+  const [copiedJoin, setCopiedJoin] = useState(false);
 
   // Re-explain & Publish state
   const [activeExplainId, setActiveExplainId] = useState<string | null>(null);
@@ -175,10 +176,18 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
     }
   }
 
+  function copyStudentLink() {
+    if (!info?.code || typeof window === "undefined") return;
+    navigator.clipboard.writeText(`${window.location.origin}/join/${info.code}`);
+    setCopiedJoin(true);
+    setTimeout(() => setCopiedJoin(false), 2000);
+  }
+
   const openClusters = clusters.filter((c) => c.status === "open");
   const top = openClusters.slice(0, 3);
   const restOpen = openClusters.slice(3);
   const addressedClusters = clusters.filter((c) => c.status === "addressed");
+  const totalDoubtsCount = clusters.reduce((acc, c) => acc + c.doubt_count, 0);
 
   function renderClusterCard(c: Cluster, rankIndex?: number) {
     const explanation = c.published_explanation;
@@ -187,66 +196,82 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
     const isAddressed = c.status === "addressed";
 
     return (
-      <div
+      <article
         key={c.id}
-        className={`space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ${
-          isAddressed ? "ring-slate-200/80 opacity-95" : "ring-slate-200"
+        className={`space-y-4 rounded-2xl bg-white p-5 sm:p-6 shadow-sm ring-1 transition-shadow hover:shadow-md ${
+          isAddressed
+            ? "ring-slate-200/80 bg-white/95"
+            : rankIndex === 0
+            ? "ring-amber-300/90"
+            : "ring-slate-200/90"
         }`}
       >
         <div className="flex items-start gap-4">
           {typeof rankIndex === "number" ? (
             <span
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full font-mono text-xl font-bold ${
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl font-mono text-xl font-bold shadow-2xs ${
                 rankIndex === 0
-                  ? "bg-amber-500 text-white"
+                  ? "bg-amber-500 text-white shadow-amber-500/20"
                   : rankIndex < 3
                   ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200"
                   : "bg-slate-100 text-slate-600"
               }`}
             >
-              {rankIndex + 1}
+              #{rankIndex + 1}
             </span>
           ) : (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-mono text-sm font-bold text-emerald-700">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 font-mono text-base font-bold text-emerald-700">
               ✓
             </span>
           )}
 
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold leading-snug text-slate-900">
+              <h3 className="text-lg sm:text-xl font-bold leading-snug text-slate-900">
                 {c.label ?? "Untitled topic"}
-              </h2>
+              </h3>
+              {rankIndex === 0 && !isAddressed && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                  Highest Priority
+                </span>
+              )}
               {isAddressed && (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                   Addressed
                 </span>
               )}
             </div>
-            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm tabular-nums text-slate-600">
-              <span>{plural(c.doubt_count, "doubt")}</span>
-              <span>{c.me_too_count} me too</span>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-xs sm:text-sm tabular-nums">
+              <span className="rounded-lg bg-slate-100 px-2.5 py-0.5 font-medium text-slate-700">
+                {plural(c.doubt_count, "doubt")}
+              </span>
+              <span className="rounded-lg bg-indigo-50 px-2.5 py-0.5 font-medium text-indigo-700">
+                {c.me_too_count} me too
+              </span>
               {c.still_confused_count > 0 && (
-                <span className="font-medium text-amber-700">
+                <span className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-0.5 font-semibold text-amber-800">
                   {c.still_confused_count} still confused
                 </span>
               )}
-            </p>
+            </div>
           </div>
 
-          <div className="text-right">
-            <p className="text-xs text-slate-400">score</p>
-            <p className="font-mono text-lg font-semibold tabular-nums text-slate-700">
+          <div className="shrink-0 rounded-xl bg-slate-50 px-3 py-1.5 text-right ring-1 ring-slate-200/70">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Score
+            </p>
+            <p className="font-mono text-lg font-bold tabular-nums text-slate-800">
               {c.score.toFixed(1)}
             </p>
           </div>
         </div>
 
         {explanation && (
-          <div className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          <div className="space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-950">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                Published to class
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                ✓ Published to class
               </p>
               {isLong && (
                 <button
@@ -254,14 +279,14 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
                   onClick={() =>
                     setOpenPublished((p) => ({ ...p, [c.id]: !p[c.id] }))
                   }
-                  className="text-xs font-medium text-emerald-700 hover:underline"
+                  className="text-xs font-semibold text-emerald-700 hover:underline"
                 >
                   {showAll ? "Show less" : "Show more"}
                 </button>
               )}
             </div>
             <p
-              className={`whitespace-pre-wrap leading-relaxed ${
+              className={`whitespace-pre-wrap leading-relaxed text-slate-800 ${
                 isLong && !showAll ? "line-clamp-3" : ""
               }`}
             >
@@ -270,8 +295,9 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
           <button
+            type="button"
             onClick={() => {
               if (activeExplainId === c.id) {
                 setActiveExplainId(null);
@@ -281,40 +307,48 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
                 generateExplanation(c.id, "default");
               }
             }}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-indigo-700 active:scale-[0.98]"
           >
-            {activeExplainId === c.id ? "Close AI helper" : "Re-explain"}
+            <span>
+              {activeExplainId === c.id ? "Close AI helper" : "✨ Re-explain with AI"}
+            </span>
           </button>
 
           <button
+            type="button"
+            aria-expanded={expanded === c.id}
             onClick={() => toggle(c.id)}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]"
           >
-            {expanded === c.id ? "Hide doubts" : "View doubts"}
+            {expanded === c.id
+              ? "Hide student doubts"
+              : `View doubts (${c.doubt_count})`}
           </button>
 
           {isAddressed ? (
             <button
+              type="button"
               onClick={() => setClusterStatus(c.id, "open")}
-              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs sm:text-sm font-semibold text-amber-900 transition hover:bg-amber-100 active:scale-[0.98]"
             >
               Reopen doubt
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => setClusterStatus(c.id, "addressed")}
-              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 active:scale-[0.98]"
             >
-              Mark addressed
+              ✓ Mark addressed
             </button>
           )}
         </div>
 
         {activeExplainId === c.id && (
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="space-y-3.5 rounded-2xl border border-indigo-200/80 bg-indigo-50/40 p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-xs font-medium text-slate-500">
-                Regenerate:
+              <span className="mr-1 text-xs font-bold uppercase tracking-wider text-indigo-900">
+                Style mode:
               </span>
               {(
                 [
@@ -329,7 +363,7 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
                   type="button"
                   disabled={generatingMode !== null}
                   onClick={() => generateExplanation(c.id, mode)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-indigo-300 hover:bg-indigo-50/60 disabled:opacity-50"
                 >
                   {generatingMode === mode ? "Thinking..." : label}
                 </button>
@@ -343,21 +377,21 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
                 setDraftText((prev) => ({ ...prev, [c.id]: e.target.value }))
               }
               placeholder="Write or edit the explanation for your class..."
-              className="w-full rounded-xl border border-slate-300 bg-white p-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm sm:text-base text-slate-900 transition focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
             />
 
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs font-medium text-slate-500">
                 {draftText[c.id] &&
                 draftText[c.id]?.trim() !== (aiOriginal[c.id] ?? "").trim()
                   ? "Edited by teacher"
-                  : "AI draft (editable)"}
+                  : "AI draft (editable before publishing)"}
               </span>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setActiveExplainId(null)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600"
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
@@ -369,7 +403,7 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
                     !(draftText[c.id] ?? "").trim()
                   }
                   onClick={() => publishExplanation(c.id)}
-                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50"
                 >
                   {publishing ? "Publishing..." : "Publish to class"}
                 </button>
@@ -379,80 +413,164 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
         )}
 
         {expanded === c.id && (
-          <ul className="space-y-2 border-t border-slate-100 pt-4 text-sm text-slate-700">
-            {(doubts[c.id] ?? []).map((d) => (
-              <li key={d.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                &ldquo;{d.text}&rdquo;
-              </li>
-            ))}
-            {!doubts[c.id] && <li className="text-slate-500">Loading...</li>}
-          </ul>
+          <div className="space-y-2 border-t border-slate-100 pt-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Anonymous student submissions in this topic
+            </p>
+            <ul className="space-y-2 text-sm text-slate-700">
+              {(doubts[c.id] ?? []).map((d) => (
+                <li
+                  key={d.id}
+                  className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-2.5 leading-relaxed"
+                >
+                  &ldquo;{d.text}&rdquo;
+                </li>
+              ))}
+              {!doubts[c.id] && (
+                <li className="text-slate-500">Loading doubts...</li>
+              )}
+            </ul>
+          </div>
         )}
-      </div>
+      </article>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8">
+    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8 selection:bg-indigo-100 selection:text-indigo-900">
       <div className="mx-auto max-w-4xl space-y-6">
-        <Link
-          href="/teacher/dashboard"
-          className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700"
-        >
-          &larr; All classes
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link
+            href="/teacher/dashboard"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-indigo-600"
+          >
+            <span aria-hidden="true">&larr;</span> All classes
+          </Link>
 
-        {/* Header */}
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-indigo-950 p-6 text-white shadow-sm">
-          <div>
-            <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-indigo-300">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-              Live confusion board
-            </p>
-            <h1 className="mt-1 text-3xl font-bold leading-tight">
-              {info?.title ?? "Lecture"}
-            </h1>
-            <p className="mt-0.5 text-indigo-200">{info?.className}</p>
-          </div>
           {info?.code && (
-            <div className="text-right">
-              <p className="text-xs font-medium uppercase tracking-wide text-indigo-300">
-                Class code
-              </p>
-              <p className="font-mono tabular-nums text-3xl font-bold tracking-[0.25em] text-amber-300">
-                {info.code}
-              </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={copyStudentLink}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
+              >
+                {copiedJoin ? "✓ Join link copied" : "Copy student join link"}
+              </button>
+              <Link
+                href={`/join/${info.code}`}
+                target="_blank"
+                className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+              >
+                Student view &rarr;
+              </Link>
             </div>
           )}
+        </div>
+
+        {/* Header */}
+        <header className="overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 p-6 sm:p-7 text-white shadow-md">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1">
+              <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                Live confusion board
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
+                {info?.title ?? "Lecture"}
+              </h1>
+              <p className="text-sm text-indigo-200">{info?.className}</p>
+            </div>
+
+            {info?.code && (
+              <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2.5 text-right backdrop-blur-sm">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-200">
+                  Class code
+                </p>
+                <p className="font-mono tabular-nums text-2xl sm:text-3xl font-bold tracking-[0.25em] text-amber-300">
+                  {info.code}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Live Summary Bar */}
+          <div className="mt-5 grid grid-cols-3 gap-2.5 border-t border-white/10 pt-4 text-center sm:text-left">
+            <div className="rounded-xl bg-white/5 px-3.5 py-2">
+              <p className="text-[11px] font-medium text-indigo-200">
+                Open topics
+              </p>
+              <p className="font-mono text-lg font-bold tabular-nums text-white">
+                {openClusters.length}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white/5 px-3.5 py-2">
+              <p className="text-[11px] font-medium text-indigo-200">
+                Addressed topics
+              </p>
+              <p className="font-mono text-lg font-bold tabular-nums text-emerald-300">
+                {addressedClusters.length}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white/5 px-3.5 py-2">
+              <p className="text-[11px] font-medium text-indigo-200">
+                Total doubts asked
+              </p>
+              <p className="font-mono text-lg font-bold tabular-nums text-amber-300">
+                {totalDoubtsCount}
+              </p>
+            </div>
+          </div>
         </header>
 
         {error && (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
             {error}
-          </p>
+          </div>
         )}
-        {loading && <p className="text-slate-500">Loading...</p>}
+
+        {loading && (
+          <div className="space-y-4">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-white p-6"
+              />
+            ))}
+          </div>
+        )}
 
         {!loading && openClusters.length === 0 && (
-          <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-            <p className="text-lg font-semibold text-slate-900">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-2xs">
+            <p className="text-lg font-bold text-slate-900">
               No open doubts right now
             </p>
-            <p className="mt-1 text-slate-600">
-              Students can post at /join/{info?.code ?? "CODE"}. Topics appear
-              here the moment they ask.
+            <p className="mt-1 text-sm text-slate-600">
+              Students can post at{" "}
+              <span className="font-mono font-semibold text-slate-800">
+                /join/{info?.code ?? "CODE"}
+              </span>
+              . Topics appear here automatically the moment they ask.
             </p>
           </div>
         )}
 
         {/* Section 1: Top 3 Confusion Points */}
         {top.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Top {top.length} Priority Doubts
-              </h2>
-              <span className="text-xs text-slate-400">
+          <section aria-labelledby="top-priority-heading" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <h2
+                  id="top-priority-heading"
+                  className="text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
+                  Top {top.length} Priority Confusion Points
+                </h2>
+              </div>
+              <span className="text-xs text-slate-500">
                 Ranked by doubts + me too + 2× still confused
               </span>
             </div>
@@ -462,11 +580,20 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
 
         {/* Section 2: Remaining Open Doubts (#4 and below) */}
         {restOpen.length > 0 && (
-          <section className="space-y-4 pt-2">
-            <div className="flex items-center justify-between border-t border-slate-200 pt-6">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Other Open Doubts ({restOpen.length})
-              </h2>
+          <section aria-labelledby="other-open-heading" className="space-y-4 pt-2">
+            <div className="flex items-center justify-between border-t border-slate-200 pt-6 px-1">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                <h2
+                  id="other-open-heading"
+                  className="text-xs font-bold uppercase tracking-wider text-slate-600"
+                >
+                  Other Open Doubts ({restOpen.length})
+                </h2>
+              </div>
+              <span className="text-xs text-slate-400">
+                Ranked #4 and below
+              </span>
             </div>
             {restOpen.map((c, idx) => renderClusterCard(c, idx + 3))}
           </section>
@@ -474,20 +601,27 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
 
         {/* Section 3: Addressed Doubts */}
         {addressedClusters.length > 0 && (
-          <section className="space-y-4 border-t border-slate-200 pt-6">
-            <div className="flex items-center justify-between">
+          <section
+            aria-labelledby="addressed-doubts-heading"
+            className="space-y-4 border-t border-slate-200 pt-6"
+          >
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <h2
+                  id="addressed-doubts-heading"
+                  className="text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
                   Addressed doubts
                 </h2>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-mono text-xs font-semibold text-emerald-800">
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-800">
                   {addressedClusters.length}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddressed((s) => !s)}
-                className="text-xs font-medium text-indigo-600 hover:underline"
+                className="rounded-lg px-2.5 py-1 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50"
               >
                 {showAddressed ? "Hide addressed" : "Show addressed"}
               </button>
