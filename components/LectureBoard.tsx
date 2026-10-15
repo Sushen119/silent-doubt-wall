@@ -31,6 +31,7 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [openPublished, setOpenPublished] = useState<Record<string, boolean>>({});
+  const [showAddressed, setShowAddressed] = useState(true);
 
   // Re-explain & Publish state
   const [activeExplainId, setActiveExplainId] = useState<string | null>(null);
@@ -103,12 +104,21 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
     setDoubts((d) => ({ ...d, [clusterId]: data as Doubt[] }));
   }
 
-  async function markAddressed(clusterId: string) {
-    const { error } = await supabase
+  async function setClusterStatus(clusterId: string, nextStatus: "open" | "addressed") {
+    setError("");
+    const { data, error } = await supabase
       .from("clusters")
-      .update({ status: "addressed", updated_at: new Date().toISOString() })
-      .eq("id", clusterId);
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq("id", clusterId)
+      .select("id");
+
     if (error) return setError(error.message);
+    if (!data || data.length === 0) {
+      return setError("Could not update cluster status. Check permissions.");
+    }
+    if (activeExplainId === clusterId && nextStatus === "addressed") {
+      setActiveExplainId(null);
+    }
     load();
   }
 
@@ -165,10 +175,222 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
     }
   }
 
-  const open = clusters.filter((c) => c.status === "open");
-  const top = open.slice(0, 3);
-  const otherOpen = open.length - top.length;
-  const addressed = clusters.length - open.length;
+  const openClusters = clusters.filter((c) => c.status === "open");
+  const top = openClusters.slice(0, 3);
+  const restOpen = openClusters.slice(3);
+  const addressedClusters = clusters.filter((c) => c.status === "addressed");
+
+  function renderClusterCard(c: Cluster, rankIndex?: number) {
+    const explanation = c.published_explanation;
+    const isLong = (explanation ?? "").length > 220;
+    const showAll = !!openPublished[c.id];
+    const isAddressed = c.status === "addressed";
+
+    return (
+      <div
+        key={c.id}
+        className={`space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ${
+          isAddressed ? "ring-slate-200/80 opacity-95" : "ring-slate-200"
+        }`}
+      >
+        <div className="flex items-start gap-4">
+          {typeof rankIndex === "number" ? (
+            <span
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full font-mono text-xl font-bold ${
+                rankIndex === 0
+                  ? "bg-amber-500 text-white"
+                  : rankIndex < 3
+                  ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {rankIndex + 1}
+            </span>
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-mono text-sm font-bold text-emerald-700">
+              ✓
+            </span>
+          )}
+
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold leading-snug text-slate-900">
+                {c.label ?? "Untitled topic"}
+              </h2>
+              {isAddressed && (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                  Addressed
+                </span>
+              )}
+            </div>
+            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm tabular-nums text-slate-600">
+              <span>{plural(c.doubt_count, "doubt")}</span>
+              <span>{c.me_too_count} me too</span>
+              {c.still_confused_count > 0 && (
+                <span className="font-medium text-amber-700">
+                  {c.still_confused_count} still confused
+                </span>
+              )}
+            </p>
+          </div>
+
+          <div className="text-right">
+            <p className="text-xs text-slate-400">score</p>
+            <p className="font-mono text-lg font-semibold tabular-nums text-slate-700">
+              {c.score.toFixed(1)}
+            </p>
+          </div>
+        </div>
+
+        {explanation && (
+          <div className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Published to class
+              </p>
+              {isLong && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenPublished((p) => ({ ...p, [c.id]: !p[c.id] }))
+                  }
+                  className="text-xs font-medium text-emerald-700 hover:underline"
+                >
+                  {showAll ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
+            <p
+              className={`whitespace-pre-wrap leading-relaxed ${
+                isLong && !showAll ? "line-clamp-3" : ""
+              }`}
+            >
+              {explanation}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              if (activeExplainId === c.id) {
+                setActiveExplainId(null);
+              } else if (draftText[c.id]) {
+                setActiveExplainId(c.id);
+              } else {
+                generateExplanation(c.id, "default");
+              }
+            }}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            {activeExplainId === c.id ? "Close AI helper" : "Re-explain"}
+          </button>
+
+          <button
+            onClick={() => toggle(c.id)}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            {expanded === c.id ? "Hide doubts" : "View doubts"}
+          </button>
+
+          {isAddressed ? (
+            <button
+              onClick={() => setClusterStatus(c.id, "open")}
+              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+            >
+              Reopen doubt
+            </button>
+          ) : (
+            <button
+              onClick={() => setClusterStatus(c.id, "addressed")}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Mark addressed
+            </button>
+          )}
+        </div>
+
+        {activeExplainId === c.id && (
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-xs font-medium text-slate-500">
+                Regenerate:
+              </span>
+              {(
+                [
+                  ["default", "Standard"],
+                  ["simpler", "Simpler"],
+                  ["analogy", "Different analogy"],
+                  ["code", "Code example"],
+                ] as [StyleMode, string][]
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={generatingMode !== null}
+                  onClick={() => generateExplanation(c.id, mode)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {generatingMode === mode ? "Thinking..." : label}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              rows={5}
+              value={draftText[c.id] ?? ""}
+              onChange={(e) =>
+                setDraftText((prev) => ({ ...prev, [c.id]: e.target.value }))
+              }
+              placeholder="Write or edit the explanation for your class..."
+              className="w-full rounded-xl border border-slate-300 bg-white p-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-slate-500">
+                {draftText[c.id] &&
+                draftText[c.id]?.trim() !== (aiOriginal[c.id] ?? "").trim()
+                  ? "Edited by teacher"
+                  : "AI draft (editable)"}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveExplainId(null)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    publishing ||
+                    generatingMode !== null ||
+                    !(draftText[c.id] ?? "").trim()
+                  }
+                  onClick={() => publishExplanation(c.id)}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {publishing ? "Publishing..." : "Publish to class"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {expanded === c.id && (
+          <ul className="space-y-2 border-t border-slate-100 pt-4 text-sm text-slate-700">
+            {(doubts[c.id] ?? []).map((d) => (
+              <li key={d.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                &ldquo;{d.text}&rdquo;
+              </li>
+            ))}
+            {!doubts[c.id] && <li className="text-slate-500">Loading...</li>}
+          </ul>
+        )}
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8">
@@ -211,200 +433,72 @@ export default function LectureBoard({ lectureId }: { lectureId: string }) {
         )}
         {loading && <p className="text-slate-500">Loading...</p>}
 
-        {!loading && top.length === 0 && (
+        {!loading && openClusters.length === 0 && (
           <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-            <p className="text-lg font-semibold text-slate-900">No open doubts yet</p>
+            <p className="text-lg font-semibold text-slate-900">
+              No open doubts right now
+            </p>
             <p className="mt-1 text-slate-600">
-              Students can post at /join/{info?.code ?? "CODE"}. Topics appear here the moment
-              they ask.
+              Students can post at /join/{info?.code ?? "CODE"}. Topics appear
+              here the moment they ask.
             </p>
           </div>
         )}
 
-        {top.map((c, i) => {
-          const explanation = c.published_explanation;
-          const isLong = (explanation ?? "").length > 220;
-          const showAll = !!openPublished[c.id];
-
-          return (
-            <div
-              key={c.id}
-              className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
-            >
-              <div className="flex items-start gap-4">
-                <span
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full font-mono text-xl font-bold ${
-                    i === 0 ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <div className="flex-1">
-                  <h2 className="text-xl font-semibold leading-snug text-slate-900">
-                    {c.label ?? "Untitled topic"}
-                  </h2>
-                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm tabular-nums text-slate-600">
-                    <span>{plural(c.doubt_count, "doubt")}</span>
-                    <span>{c.me_too_count} me too</span>
-                    {c.still_confused_count > 0 && (
-                      <span className="font-medium text-amber-700">
-                        {c.still_confused_count} still confused
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400">score</p>
-                  <p className="font-mono text-lg font-semibold tabular-nums text-slate-700">
-                    {c.score.toFixed(1)}
-                  </p>
-                </div>
-              </div>
-
-              {explanation && (
-                <div className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                      Published to class
-                    </p>
-                    {isLong && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setOpenPublished((p) => ({ ...p, [c.id]: !p[c.id] }))
-                        }
-                        className="text-xs font-medium text-emerald-700 hover:underline"
-                      >
-                        {showAll ? "Show less" : "Show more"}
-                      </button>
-                    )}
-                  </div>
-                  <p
-                    className={`whitespace-pre-wrap leading-relaxed ${
-                      isLong && !showAll ? "line-clamp-3" : ""
-                    }`}
-                  >
-                    {explanation}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => {
-                    if (activeExplainId === c.id) {
-                      setActiveExplainId(null);
-                    } else if (draftText[c.id]) {
-                      setActiveExplainId(c.id);
-                    } else {
-                      generateExplanation(c.id, "default");
-                    }
-                  }}
-                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                >
-                  {activeExplainId === c.id ? "Close AI helper" : "Re-explain"}
-                </button>
-                <button
-                  onClick={() => toggle(c.id)}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  {expanded === c.id ? "Hide doubts" : "View doubts"}
-                </button>
-                <button
-                  onClick={() => markAddressed(c.id)}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Mark addressed
-                </button>
-              </div>
-
-              {activeExplainId === c.id && (
-                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="mr-1 text-xs font-medium text-slate-500">Regenerate:</span>
-                    {(
-                      [
-                        ["default", "Standard"],
-                        ["simpler", "Simpler"],
-                        ["analogy", "Different analogy"],
-                        ["code", "Code example"],
-                      ] as [StyleMode, string][]
-                    ).map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        disabled={generatingMode !== null}
-                        onClick={() => generateExplanation(c.id, mode)}
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-                      >
-                        {generatingMode === mode ? "Thinking..." : label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <textarea
-                    rows={5}
-                    value={draftText[c.id] ?? ""}
-                    onChange={(e) =>
-                      setDraftText((prev) => ({ ...prev, [c.id]: e.target.value }))
-                    }
-                    placeholder="Write or edit the explanation for your class..."
-                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs text-slate-500">
-                      {draftText[c.id] &&
-                      draftText[c.id]?.trim() !== (aiOriginal[c.id] ?? "").trim()
-                        ? "Edited by teacher"
-                        : "AI draft (editable)"}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveExplainId(null)}
-                        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={
-                          publishing ||
-                          generatingMode !== null ||
-                          !(draftText[c.id] ?? "").trim()
-                        }
-                        onClick={() => publishExplanation(c.id)}
-                        className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        {publishing ? "Publishing..." : "Publish to class"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {expanded === c.id && (
-                <ul className="space-y-2 border-t border-slate-100 pt-4 text-sm text-slate-700">
-                  {(doubts[c.id] ?? []).map((d) => (
-                    <li key={d.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                      &ldquo;{d.text}&rdquo;
-                    </li>
-                  ))}
-                  {!doubts[c.id] && <li className="text-slate-500">Loading...</li>}
-                </ul>
-              )}
+        {/* Section 1: Top 3 Confusion Points */}
+        {top.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Top {top.length} Priority Doubts
+              </h2>
+              <span className="text-xs text-slate-400">
+                Ranked by doubts + me too + 2× still confused
+              </span>
             </div>
-          );
-        })}
+            {top.map((c, i) => renderClusterCard(c, i))}
+          </section>
+        )}
 
-        {(otherOpen > 0 || addressed > 0) && (
-          <p className="text-sm text-slate-500">
-            {otherOpen > 0 &&
-              `${otherOpen} more open topic${otherOpen > 1 ? "s" : ""}`}
-            {otherOpen > 0 && addressed > 0 && " · "}
-            {addressed > 0 && `${addressed} addressed`}
-          </p>
+        {/* Section 2: Remaining Open Doubts (#4 and below) */}
+        {restOpen.length > 0 && (
+          <section className="space-y-4 pt-2">
+            <div className="flex items-center justify-between border-t border-slate-200 pt-6">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Other Open Doubts ({restOpen.length})
+              </h2>
+            </div>
+            {restOpen.map((c, idx) => renderClusterCard(c, idx + 3))}
+          </section>
+        )}
+
+        {/* Section 3: Addressed Doubts */}
+        {addressedClusters.length > 0 && (
+          <section className="space-y-4 border-t border-slate-200 pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Addressed doubts
+                </h2>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-mono text-xs font-semibold text-emerald-800">
+                  {addressedClusters.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddressed((s) => !s)}
+                className="text-xs font-medium text-indigo-600 hover:underline"
+              >
+                {showAddressed ? "Hide addressed" : "Show addressed"}
+              </button>
+            </div>
+
+            {showAddressed && (
+              <div className="space-y-4">
+                {addressedClusters.map((c) => renderClusterCard(c))}
+              </div>
+            )}
+          </section>
         )}
       </div>
     </main>
