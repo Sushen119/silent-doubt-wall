@@ -37,6 +37,14 @@ function randomCode() {
   return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
 }
 
+// "  Back   End " and "back end" are treated as the same class name
+function cleanName(s: string) {
+  return s.trim().replace(/\s+/g, " ");
+}
+function nameKey(s: string) {
+  return cleanName(s).toLowerCase();
+}
+
 function getBaseSiteUrl() {
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (envUrl) return envUrl.replace(/\/+$/, "");
@@ -58,6 +66,10 @@ export default function ClassManager() {
   const [openHistoryClassId, setOpenHistoryClassId] = useState<string | null>(null);
   const [historyData, setHistoryData] = useState<Record<string, HistoryRow[]>>({});
   const [loadingHistory, setLoadingHistory] = useState<string | null>(null);
+
+  // Delete state
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -87,8 +99,15 @@ export default function ClassManager() {
   async function createClass(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const name = className.trim();
+    const name = cleanName(className);
     if (!name) return;
+
+    // Block duplicate class names (case-insensitive)
+    if (classes.some((c) => nameKey(c.name) === nameKey(name))) {
+      return setError(
+        `You already have a class named "${name}". Choose a different name.`
+      );
+    }
 
     const {
       data: { user },
@@ -104,9 +123,42 @@ export default function ClassManager() {
         setClassName("");
         return load();
       }
-      if (error.code !== "23505") return setError(error.message);
+      if (error.code === "23505") {
+        // Duplicate NAME caught by the optional database index
+        if (error.message.includes("classes_teacher_name_unique")) {
+          return setError(
+            `You already have a class named "${name}". Choose a different name.`
+          );
+        }
+        continue; // otherwise it was a code collision: try a new code
+      }
+      return setError(error.message);
     }
     setError("Could not generate a unique code, try again");
+  }
+
+  async function deleteClass(classId: string) {
+    setError("");
+    setDeletingId(classId);
+    const { data, error } = await supabase
+      .from("classes")
+      .delete()
+      .eq("id", classId)
+      .select("id");
+    setDeletingId(null);
+    setConfirmDeleteId(null);
+
+    if (error) return setError(error.message);
+    // RLS can silently block a delete (0 rows, no error), so check for that
+    if (!data || data.length === 0) {
+      return setError(
+        "Could not delete this class. The database may be missing a delete permission for teachers."
+      );
+    }
+
+    setClasses((prev) => prev.filter((c) => c.id !== classId));
+    if (openQrClassId === classId) setOpenQrClassId(null);
+    if (openHistoryClassId === classId) setOpenHistoryClassId(null);
   }
 
   async function addLecture(classId: string) {
@@ -158,7 +210,10 @@ export default function ClassManager() {
       >
         <input
           value={className}
-          onChange={(e) => setClassName(e.target.value)}
+          onChange={(e) => {
+            setClassName(e.target.value);
+            if (error) setError("");
+          }}
           placeholder="New class name, e.g. BCA Sem 5 - DBMS"
           className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
@@ -184,6 +239,8 @@ export default function ClassManager() {
         const showQr = openQrClassId === c.id;
         const showHistory = openHistoryClassId === c.id;
         const chartRows = historyData[c.id] ?? [];
+        const confirming = confirmDeleteId === c.id;
+        const deleting = deletingId === c.id;
 
         return (
           <div
@@ -211,7 +268,7 @@ export default function ClassManager() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex flex-wrap gap-2 px-4 sm:px-5 pb-4">
+            <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 pb-4">
               <button
                 type="button"
                 onClick={() => setOpenQrClassId(showQr ? null : c.id)}
@@ -234,7 +291,48 @@ export default function ClassManager() {
               >
                 {showHistory ? "Hide History Chart" : "Confusion History"}
               </button>
+              {!confirming && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(c.id)}
+                  className="ml-auto text-sm rounded-lg px-3 py-1.5 font-medium border border-red-200 text-red-600 hover:bg-red-50 transition"
+                >
+                  Delete class
+                </button>
+              )}
             </div>
+
+            {/* Delete confirmation */}
+            {confirming && (
+              <div className="px-4 sm:px-5 pb-4">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                  <p className="text-sm text-red-800">
+                    Delete <span className="font-semibold">&ldquo;{c.name}&rdquo;</span>?
+                    This permanently removes its lectures, doubts and explanations,
+                    and the class code <span className="font-mono">{c.code}</span> will
+                    stop working. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="text-sm border border-slate-300 bg-white text-slate-700 rounded-lg px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => deleteClass(c.id)}
+                      className="text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg px-3 py-1.5 font-semibold disabled:opacity-50"
+                    >
+                      {deleting ? "Deleting..." : "Yes, delete class"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* QR Code & Join Link Panel */}
             {showQr && (
